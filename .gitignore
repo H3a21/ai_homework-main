@@ -12,3 +12,6 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+
+# Local Claude Code settings
+.claude/settings.local.json
