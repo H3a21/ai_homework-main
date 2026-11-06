@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <!-- 透明背景 — 与登录页品牌图标保持一致 -->
+  <!-- 书本底（两侧斜面，品牌靛蓝色） -->
+  <path d="M7 22.5V12l9 3v10.5l-9-3z" fill="#6366f1" fill-opacity="0.15"/>
+  <path d="M25 22.5V12l-9 3v10.5l9-3z" fill="#6366f1" fill-opacity="0.10"/>
+  <!-- 对勾（品牌靛蓝色） -->
+  <path d="M9 16.5l5 4.5 8.5-9" stroke="#6366f1" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- AI 金色星芒 -->
+  <circle cx="25.5" cy="8.5" r="1.8" fill="#fbbf24"/>
+  <path d="M25.5 5v-1M25.5 12v1M21.5 8.5h-1M29.5 8.5h1" stroke="#fbbf24" stroke-width="1" stroke-linecap="round"/>
+</svg>

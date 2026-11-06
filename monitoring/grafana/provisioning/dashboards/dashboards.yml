@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: AI Homework
+    orgId: 1
+    folder: AI Homework
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

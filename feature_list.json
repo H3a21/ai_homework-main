@@ -1,0 +1,577 @@
+{
+  "project": "AI智能批改作业系统",
+  "last_updated": "2026-07-19",
+  "rules": {
+    "single_active_feature": true,
+    "passing_requires_evidence": true,
+    "do_not_skip_verification": true
+  },
+  "status_legend": {
+    "not_started": "功能还没开始做。",
+    "in_progress": "这个功能是当前唯一正在进行的任务。",
+    "blocked": "因为已记录的阻塞问题，当前无法继续推进。",
+    "passing": "要求的验证已经通过，并且证据已经记录。"
+  },
+  "features": [
+    {
+      "id": "infra-001",
+      "priority": 1,
+      "area": "基建",
+      "title": "Docker 编排 + 环境搭建",
+      "description": "完整 docker-compose.yml（mysql+mysql-backup+redis+rabbitmq+minio+backend+frontend+celery-worker+ocr+prometheus+grafana），.env 环境变量管理，健康检查",
+      "user_visible_behavior": "运行 docker compose up -d --build 后所有服务启动正常，健康检查全部通过",
+      "status": "passing",
+      "verification": [
+        "docker compose up -d --build 成功",
+        "curl http://localhost:8000/api/health 返回完整健康检查",
+        "前端 http://localhost 可访问"
+      ],
+      "evidence": [
+        "docker-compose.yml 含 11 个服务",
+        "backend/app/health.py 实现 MySQL/Redis/RabbitMQ 健康检查",
+        "前端构建通过"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "infra-002",
+      "priority": 2,
+      "area": "基建",
+      "title": "JWT 认证 + OAuth2 密码模式",
+      "description": "登录/注册/刷新令牌端点，access token（30min）+ refresh token（7天），bcrypt 密码哈希 + pepper",
+      "user_visible_behavior": "用户可以通过用户名密码登录，获取 JWT token，使用 token 访问受保护路由",
+      "status": "passing",
+      "verification": [
+        "POST /api/auth/register 创建用户成功",
+        "POST /api/auth/login 返回 access_token + refresh_token",
+        "POST /api/auth/refresh 使用 refresh_token 刷新成功",
+        "访问受保护接口返回 401（无 token）vs 200（有 token）"
+      ],
+      "evidence": [
+        "backend/app/auth.py 实现了完整的 auth router",
+        "backend/app/dependencies.py 实现 get_current_user + require_role"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "infra-003",
+      "priority": 3,
+      "area": "基建",
+      "title": "RBAC 权限模型",
+      "description": "require_role 中间件，教师/学生角色权限校验",
+      "user_visible_behavior": "教师只能访问教师端路由，学生只能访问学生端路由，越权返回 403",
+      "status": "passing",
+      "verification": [
+        "教师 token 访问学生接口返回 403",
+        "学生 token 访问教师接口返回 403"
+      ],
+      "evidence": [
+        "backend/app/dependencies.py:require_role 和 decode_access_token 实现角色与令牌校验",
+        "backend/app/access_control.py 集中实现班级、作业、提交和师生对象级权限",
+        "tests/test_access_control.py、tests/test_router_units.py 和 tests/test_realtime.py 覆盖跨班级/跨学生拒绝路径"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "infra-004",
+      "priority": 4,
+      "area": "基建",
+      "title": "SQLAlchemy 数据模型层",
+      "description": "14 个 ORM 模型覆盖用户、班级、作业、提交、评分、批改版本、审计、知识关系和掌握度",
+      "user_visible_behavior": "数据库表可以通过 SQLAlchemy ORM 正常 CRUD",
+      "status": "passing",
+      "verification": [
+        "所有模型可以正常导入，无循环引用",
+        "通过 get_db() 可执行查询",
+        "数据库表结构与 init.sql 一致"
+      ],
+      "evidence": [
+        "backend/app/models.py 包含 14 个数据模型",
+        "backend/app/database.py 配置异步引擎",
+        "init.sql 与 models.py 结构一致"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "infra-005",
+      "priority": 5,
+      "area": "基建",
+      "title": "Vue Router + Pinia 状态管理 + 布局壳",
+      "description": "完整路由表、auth store、API 客户端（含 token 刷新拦截器）、教师/学生布局壳",
+      "user_visible_behavior": "登录后根据角色跳转对应仪表盘，侧边栏导航可用，页面路由守卫生效",
+      "status": "passing",
+      "verification": [
+        "未登录访问 /teacher/dashboard 自动跳转 /login",
+        "登录后教师看到教师布局，学生看到学生布局",
+        "路由切换正常，无 404"
+      ],
+      "evidence": [
+        "frontend/src/router/index.ts 含路由守卫 + 角色校验",
+        "frontend/src/stores/auth.ts 完整实现",
+        "frontend/src/api/client.ts 含 axios 拦截器 + token 刷新",
+        "frontend/src/layouts/TeacherLayout.vue + StudentLayout.vue"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "async-001",
+      "priority": 6,
+      "area": "异步架构",
+      "title": "Celery + RabbitMQ 异步任务系统",
+      "description": "celery_app.py 配置、celery-worker 服务、grading/report 队列、任务重试机制",
+      "user_visible_behavior": "提交批改任务后立即返回 202，后台 Celery 异步处理",
+      "status": "passing",
+      "verification": [
+        "celery worker 成功连接到 rabbitmq",
+        "发送任务后 worker 正确消费"
+      ],
+      "evidence": [
+        "backend/app/worker.py 含 Celery 配置、真实 grade_submission 任务、重试和独立异步数据库会话",
+        "docker-compose.yml 含 celery-worker 服务",
+        "requirements.txt 含 celery 依赖",
+        "tests/integration_celery_grading.py 验证 RabbitMQ → Celery → MySQL 闭环"
+      ],
+      "notes": "grade_submission 已接入真实批改；generate_report 仍为任务桩。Docker worker 当前以 root 用户运行，日志存在 Celery 安全警告，生产部署需改为非 root 用户。"
+    },
+    {
+      "id": "async-002",
+      "priority": 7,
+      "area": "异步架构",
+      "title": "Redis 缓存层",
+      "description": "Redis 客户端配置",
+      "user_visible_behavior": "重复请求命中缓存，响应更快",
+      "status": "passing",
+      "verification": [
+        "Redis 连接配置正确"
+      ],
+      "evidence": [
+        "docker-compose.yml 含 redis 服务",
+        "health.py 含 Redis ping 检查",
+        "config.py 含 REDIS_URL 配置"
+      ],
+      "notes": "学情报告使用 Redis JSON 缓存、TTL 和批改后模式失效；Redis 还承担 WebSocket 跨进程状态事件。"
+    },
+    {
+      "id": "async-003",
+      "priority": 8,
+      "area": "异步架构",
+      "title": "MinIO 图片上传 + WebSocket 实时推送",
+      "description": "MinIO 客户端、submission_images 存储",
+      "user_visible_behavior": "学生上传作业图片到 MinIO",
+      "status": "passing",
+      "verification": [
+        "PNG/JPEG 经魔数、大小、扩展名和用户命名空间校验后写入私有 MinIO bucket",
+        "Docker 集成验证上传、提交绑定、鉴权下载和对象清理",
+        "Celery 经 Redis Pub/Sub 推送 grading/completed，客户端通过 Nginx WebSocket 收到"
+      ],
+      "evidence": [
+        "docker-compose.yml 含 minio 服务",
+        "backend/app/object_storage.py 和 image_uploads.py 实现私有对象读写与上传校验",
+        "backend/app/submission_events.py 和 routers/realtime.py 实现状态事件与首帧认证 WebSocket",
+        "frontend/src/views/student/SubmitView.vue 和 ResultView.vue 实现真实上传与实时结果",
+        "tests/integration_submission_upload.py 和 integration_realtime_grading.py 通过 Docker 验证"
+      ],
+      "notes": "WebSocket 正常连接时结果页不轮询；断线时指数退避重连并启用 10 秒低频 HTTP 兜底。"
+    },
+    {
+      "id": "grading-001",
+      "priority": 9,
+      "area": "批改引擎",
+      "title": "PaddleOCR 微服务集成",
+      "description": "独立 OCR 容器（paddleocr），Docker GPU 支持，OCR 预处理",
+      "user_visible_behavior": "上传作业图片后，OCR 服务返回结构化文本",
+      "status": "blocked",
+      "verification": [
+        "OCR 服务启动成功，/ocr 端点可调用（清晰印刷中文已通过）",
+        "backend/worker 通过 Docker 网络调用 OCR 成功，recognized_text 写入数据库",
+        "非法文件返回 415，缺少文件字段返回 422",
+        "手写数学公式图片返回正确 LaTeX",
+        "手写汉字图片返回正确文本"
+      ],
+      "evidence": [
+        "ocr/ocr_server.py (FastAPI + PaddleOCR)",
+        "ocr/Dockerfile (python:3.10-slim + GPU)",
+        "backend/app/ocr_client.py (async HTTP 客户端)",
+        "backend/app/grade_assignment.py (OCR 集成到 grade_submission)",
+        "backend/app/models.py (recognized_text 字段)",
+        "docker-compose.yml (backend/worker 使用 http://ocr:5001)",
+        "tests/test_ocr_service.py (文件校验测试)",
+        "tests/integration_ocr_grading.py (image→OCR→Celery→MySQL 集成测试)",
+        "后端 import 通过",
+        "前端构建通过"
+      ],
+      "notes": "清晰印刷中文图片识别为 2 行，置信度 0.9975/0.9609；OCR→Celery→中文批改链路得分 15.9/20 并完成清理。手写汉字和手写数学公式准确率仍需真实样本人工验收；用户已将真实图片测试延期，因此当前标记 blocked，收到样本后恢复。"
+    },
+    {
+      "id": "grading-002",
+      "priority": 10,
+      "area": "批改引擎",
+      "title": "数学批改流水线",
+      "description": "sympy 表达式解析 + LaTeX 转 AST + 步骤对齐 + 过程判分",
+      "user_visible_behavior": "数学作业自动批改，逐题显示得分和错误步骤定位",
+      "status": "passing",
+      "verification": [
+        "完全正确的解答得到满分",
+        "过程正确但计算结果错误得到部分分",
+        "关键步骤错误得零分"
+      ],
+      "evidence": [
+        "backend/app/math_pipeline.py (SymPy 表达式解析 + 步骤判分)",
+        "backend/app/grade_assignment.py (学科路由调度器)",
+        "backend/requirements.txt (sympy + latex2sympy2)",
+        "tests/test_math_pipeline.py (11 个单元测试全部通过)"
+      ],
+      "notes": "步骤判分依赖 ; 和 \n 做切割，对连续文本步骤可能不准确"
+    },
+    {
+      "id": "grading-003",
+      "priority": 11,
+      "area": "批改引擎",
+      "title": "语文批改流水线",
+      "description": "错别字检测 + 句子通顺度 + 内容相关度 + 结构完整性评分",
+      "user_visible_behavior": "语文作文自动批改，在逐题反馈中返回疑似错别字、通顺度、内容相关度和结构完整度结果",
+      "status": "passing",
+      "verification": [
+        "python tests/test_chinese_pipeline.py：7 个测试通过",
+        "python tests/test_grade_dispatch.py：调度层测试通过",
+        "Docker backend 中中文评分和 grade_submission 导入通过"
+      ],
+      "evidence": [
+        "backend/app/chinese_pipeline.py：错别字、通顺度、相关度和结构评分",
+        "backend/app/grade_assignment.py：按学科名称解析并接入中文流水线",
+        "tests/test_chinese_pipeline.py：中文流水线单元测试",
+        "tests/test_grade_dispatch.py：调度层测试"
+      ],
+      "notes": "错别字检测采用可解释的保守短语规则和重复字检测，不等同于完整中文词典或 LLM 语义审校；GradingResult.feedback 中包含可读反馈。"
+    },
+    {
+      "id": "grading-004",
+      "priority": 12,
+      "area": "批改引擎",
+      "title": "英语批改流水线",
+      "description": "拼写检查 + 语法检查 + 词汇多样性 + 内容相关度",
+      "user_visible_behavior": "英语作文自动批改，返回拼写错误、语法错误、词汇复杂度评分",
+      "status": "passing",
+      "verification": [
+        "python tests/test_english_pipeline.py：7 个测试通过",
+        "常见拼写错误、主谓一致、冠词、句首大小写和句末标点可定位",
+        "主题相关作文得分高于无关作文，词汇多样文本得分高于重复文本",
+        "Docker Celery 集成测试：英语任务完成，得分 18.9/20，生成 1 条 GradingResult"
+      ],
+      "evidence": [
+        "backend/app/english_pipeline.py：确定性英语四维评分和可读反馈",
+        "backend/app/grade_assignment.py：英语学科接入真实流水线",
+        "tests/test_english_pipeline.py：7 个英语流水线单元测试",
+        "tests/test_grade_dispatch.py：英语调度层测试",
+        "tests/integration_celery_grading.py：英语 RabbitMQ/Celery/MySQL 集成验证"
+      ],
+      "notes": "拼写和语法检测采用保守规则库，不等同于完整词典、LanguageTool 或 LLM 语义审校；复杂时态、从句和语义语法仍可能漏检。"
+    },
+    {
+      "id": "grading-005",
+      "priority": 13,
+      "area": "批改引擎",
+      "title": "批改引擎调度器",
+      "description": "GRADING_PIPELINES 路由映射、grade_submission Celery 任务、学科自动检测",
+      "user_visible_behavior": "提交作业后自动匹配对应学科流水线进行批改",
+      "status": "passing",
+      "verification": [
+        "python tests/test_worker.py：3 个 worker/入队测试通过",
+        "python tests/test_grade_dispatch.py：按中英文学科名称路由测试通过",
+        "Docker 集成测试：任务进入 RabbitMQ 后由 Celery 消费，submission.status 变为 completed",
+        "集成测试生成 1 条中文 GradingResult，得分 17.2/20，临时数据清理完成",
+        "教师 HTTP 触发后生成递增 grading_attempts 版本，保存 grading/completed 状态、OCR、结果、总分、评语、耗时和批改器版本快照"
+      ],
+      "evidence": [
+        "backend/app/worker.py：真实 Celery 批改任务、重试、acks_late 和队列配置",
+        "backend/app/routers/submissions.py：创建提交和教师触发均返回 202/task_id",
+        "backend/app/grade_assignment.py：按 Subject.name 选择流水线",
+        "frontend/src/api/submissions.ts：异步批改 API 契约",
+        "ResultView.vue：WebSocket 实时状态与断线低频兜底；SubmissionDetailView.vue、GradingReviewView.vue：教师端状态轮询",
+        "backend/app/grading_history.py 与 backend/app/routers/history.py：批改尝试生命周期和受管提交历史 API",
+        "tests/integration_celery_grading.py 与 tests/integration_realtime_grading.py：可自建和自清理的 Docker 集成测试"
+      ],
+      "notes": "API 会阻止已完成或已在 grading 状态的记录重复入队；批改尝试使用 submission_id + attempt_number 唯一约束保留版本，但并发重复入队仍没有提交级运行锁。教师历史接口仅允许查询自己管理班级的提交。"
+    },
+    {
+      "id": "comment-001",
+      "priority": 14,
+      "area": "评语生成",
+      "title": "LLM 个性化评语生成",
+      "description": "OpenAI 兼容 LLM 引擎（支持 Qwen 兼容端点）+ 提示词模板 + 内容安全过滤 + 自动模板降级",
+      "user_visible_behavior": "批改完成后自动生成个性化评语",
+      "status": "passing",
+      "verification": [
+        "python tests/test_llm_feedback.py：6 个客户端、提示词、兼容参数、安全和失败路径测试通过",
+        "python tests/test_feedback_engine.py：7 个测试通过，验证 LLM 成功结果优先且不可用时自动回退模板",
+        "Docker backend/frontend/celery-worker 镜像构建通过，数学规则 11/11 通过",
+        "无 LLM_API_KEY 时，Docker Celery 数学/语文/英语任务均完成并将模板评语写入 MySQL"
+      ],
+      "evidence": [
+        "backend/app/llm_feedback.py：OpenAI 兼容异步客户端、受限提示词、输出清洗和异常降级",
+        "backend/app/config.py 与 .env.example：API Key、Base URL、模型、超时和 token 参数配置",
+        "backend/app/feedback_engine.py：LLM 优先、确定性模板保底的统一入口",
+        "backend/app/grade_assignment.py：批改完成后异步生成并保存总评语",
+        "tests/test_llm_feedback.py 与 tests/test_feedback_engine.py：成功、无配置、HTTP 错误、超时、空响应和不安全输出测试",
+        "tests/integration_celery_grading.py：三学科 RabbitMQ→Celery→MySQL 降级链路回归"
+      ],
+      "notes": "当前未配置真实外部模型密钥，因此真实 OpenAI/Qwen 供应商调用仍待人工验收；mock 已验证兼容协议和个性化结果接入。Redis 缓存未纳入本次最小闭环，可在有真实调用成本和并发数据后再增加。"
+    },
+    {
+      "id": "comment-002",
+      "priority": 15,
+      "area": "评语生成",
+      "title": "模板保底评语引擎",
+      "description": "基于错题模式的模板匹配，无外部依赖，零停机降级",
+      "user_visible_behavior": "LLM 不可用时自动使用模板评语",
+      "status": "passing",
+      "verification": [
+        "python tests/test_feedback_engine.py：5 个模板评语测试通过",
+        "无 LLM、无网络依赖时可按学科、分数和逐题反馈生成确定性总评语",
+        "Docker Celery 数学/语文/英语任务均生成对应学科评语并写入 submission.comment",
+        "正向反馈不会误触发错误建议，临时集成数据全部自动清理"
+      ],
+      "evidence": [
+        "backend/app/feedback_engine.py：分数学科和错误模式的确定性模板评语",
+        "backend/app/grade_assignment.py：批改完成后生成并保存 submission.comment",
+        "tests/test_feedback_engine.py：高/中/低分、错误匹配、正向不误报和确定性测试",
+        "tests/integration_celery_grading.py：三学科 Celery 评语落库验证"
+      ],
+      "notes": "当前模板引擎根据逐题 feedback 中的稳定标记匹配建议；未识别的问题使用分数学段兜底评语。comment-001 已优先调用 LLM，未配置、请求失败或输出不安全时回退到本引擎。"
+    },
+    {
+      "id": "profile-001",
+      "priority": 16,
+      "area": "知识建模",
+      "title": "知识点图谱 + IRT 掌握度",
+      "description": "knowledge_relations 表、题目 IRT 参数、在线 2PL-IRT 能力值估计、student_knowledge_mastery 更新",
+      "user_visible_behavior": "批改后自动更新学生各知识点掌握度，薄弱知识点被标记",
+      "status": "passing",
+      "verification": [
+        "Docker 现有 MySQL volume 启动迁移成功，新增关系表和 IRT 字段不要求删库",
+        "python tests/test_knowledge_profile.py：6 个边界、难度、部分得分和收敛测试通过",
+        "Docker 集成测试验证 API 建点/建关系、Celery 批改后 theta/掌握度落库和临时数据清理",
+        "教师只能查询共同受管班级中的学生掌握度；学生只能查询自己，越权返回 403"
+      ],
+      "evidence": [
+        "backend/app/models.py 与 backend/init.sql：knowledge_relations、Question IRT 参数和掌握度统计字段",
+        "backend/app/schema_migrations.py：幂等增量迁移",
+        "backend/app/knowledge_profile.py：边界受限的在线 2PL-IRT 更新和得分比例处理",
+        "backend/app/grade_assignment.py：批改结果按题目知识点更新学生掌握度",
+        "backend/app/routers/knowledge.py：图谱、知识点/关系管理和掌握度查询 API",
+        "tests/test_knowledge_profile.py 与 tests/integration_knowledge_profile.py：单元和 Docker 端到端证据"
+      ],
+      "notes": "题目默认 difficulty=0、discrimination=1，支持在布置作业时覆盖；当前关系接口校验同学科和重复关系，但尚未做环检测。掌握度是可解释的在线 2PL-IRT 近似，不等同于经过大规模题库标定的正式测量模型。"
+    },
+    {
+      "id": "profile-002",
+      "priority": 17,
+      "area": "知识建模",
+      "title": "学情分析报告生成",
+      "description": "班级学情报告 + 个人画像 + Redis 缓存",
+      "user_visible_behavior": "教师查看班级学情报告，学生查看个人画像",
+      "status": "passing",
+      "verification": [
+        "python tests/test_learning_reports.py：6 个个人/班级聚合测试通过",
+        "个人报告包含总览、按学科汇总、雷达图数据、优势和薄弱知识点",
+        "班级报告正确聚合学生覆盖数、知识点平均掌握度、薄弱率和学生摘要",
+        "Docker 集成验证 Redis 首次 miss、二次 hit、批改后个人/班级缓存失效和权限限制"
+      ],
+      "evidence": [
+        "backend/app/learning_reports.py：个人画像和班级报告聚合服务",
+        "backend/app/report_cache.py：Redis JSON 缓存、TTL 和模式失效",
+        "backend/app/routers/reports.py：个人/班级报告 API 和班级权限校验",
+        "backend/app/grade_assignment.py：掌握度提交成功后清除相关报告缓存",
+        "tests/test_learning_reports.py：纯聚合单元测试",
+        "tests/integration_learning_reports.py：MySQL→API→Redis→Celery→缓存失效端到端证据"
+      ],
+      "notes": "缓存默认 TTL 300 秒，Redis 不可用时自动回源 MySQL且不影响批改。当前报告基于最新掌握度快照，不伪造历史趋势；API 已提供 radar 数组，ECharts 雷达图界面由 frontend-003 实现。"
+    },
+    {
+      "id": "frontend-001",
+      "priority": 18,
+      "area": "前端页面",
+      "title": "教师端页面",
+      "description": "教师仪表盘、班级管理、布置作业、作业管理页面",
+      "user_visible_behavior": "教师可以管理班级、布置作业、查看作业列表",
+      "status": "passing",
+      "verification": [
+        "班级管理页面可查看、创建班级",
+        "班级详情页展示成员和作业",
+        "布置作业表单可用",
+        "作业管理页展示作业列表"
+      ],
+      "evidence": [
+        "ClassesView.vue — 班级列表 + 创建",
+        "ClassDetailView.vue — 班级详情 + 添加学生",
+        "AssignmentCreateView.vue — 布置作业表单",
+        "AssignmentsView.vue — 作业列表概览"
+      ],
+      "notes": "班级学情入口和批改详情可视化已接入；教师工作台统计卡仍为占位数据"
+    },
+    {
+      "id": "frontend-002",
+      "priority": 19,
+      "area": "前端页面",
+      "title": "学生端页面",
+      "description": "学生作业列表、作业提交、批改结果查看页面",
+      "user_visible_behavior": "学生可以查看作业列表、提交作业、查看批改结果",
+      "status": "passing",
+      "verification": [
+        "学生作业列表显示待提交/已批改状态",
+        "提交作业页面可用",
+        "批改结果展示逐题得分"
+      ],
+      "evidence": [
+        "AssignmentsView.vue (student) — 作业列表",
+        "SubmitView.vue — 作业提交流程",
+        "ResultView.vue — 批改结果展示"
+      ],
+      "notes": "学生端使用真实文件选择、缩略图、上传进度和失败重试；图片存入私有 MinIO，并通过鉴权代理读取。"
+    },
+    {
+      "id": "frontend-003",
+      "priority": 20,
+      "area": "前端页面",
+      "title": "批改展示核心组件",
+      "description": "ImageViewer、StepComparison、ScoreDistribution、KnowledgeRadar、TrendChart",
+      "user_visible_behavior": "批改审核页有丰富的可视化组件辅助人工审核",
+      "status": "passing",
+      "verification": [
+        "npm run build 与 Docker frontend 多阶段构建通过",
+        "ImageViewer 支持缩放、重置、双页对比和图片失败状态",
+        "KnowledgeRadar、ScoreDistribution、TrendChart 使用按需 ECharts Canvas 渲染",
+        "学生个人画像、教师班级学情和教师批改详情均已接入可视化组件"
+      ],
+      "evidence": [
+        "frontend/src/components/EChartSurface.vue：ECharts 生命周期、按需注册和 ResizeObserver",
+        "frontend/src/components/ImageViewer.vue：缩放工具栏和双页对比",
+        "frontend/src/components/StepComparison.vue：逐题完成度和反馈对比",
+        "frontend/src/components/KnowledgeRadar.vue、ScoreDistribution.vue、TrendChart.vue：图表组件",
+        "frontend/src/views/student/ProfileView.vue：学生个人画像",
+        "frontend/src/views/teacher/ClassReportView.vue：班级学情视图",
+        "frontend/src/views/teacher/SubmissionDetailView.vue：图片、逐题对比和得分分布"
+      ],
+      "notes": "ECharts 已按需注册，主要图表分包约 494 KB。趋势组件在没有历史快照时显示空状态，不生成假数据。Docker Chromium 已验证教师建作业、学生提交和教师复核/报告三条流程；移动端视觉仍需人工验收。npm audit 的 moderate 漏洞尚未执行破坏性的 audit fix --force。"
+    },
+    {
+      "id": "quality-001",
+      "priority": 21,
+      "area": "质量加固",
+      "title": "可观测性（Prometheus + Grafana）",
+      "description": "Prometheus 指标、结构化日志、Grafana 仪表盘",
+      "user_visible_behavior": "运维人员可以通过 Grafana 查看系统运行状态",
+      "status": "passing",
+      "verification": [
+        "GET /metrics 返回 Prometheus 指标",
+        "Grafana 仪表盘展示批改吞吐量和延迟"
+      ],
+      "evidence": [
+        "backend/app/observability.py implements HTTP and grading Prometheus metrics plus JSON logging",
+        "docker-compose.yml adds shared multiprocess metrics volume, Prometheus and Grafana",
+        "monitoring/prometheus/prometheus.yml scrapes backend:8000/metrics",
+        "monitoring/grafana/dashboards/grading-overview.json provisions throughput and latency panels",
+        "Docker verification: backend /metrics returned HTTP and grading metrics",
+        "Docker verification: Prometheus target ai-homework-backend health=up",
+        "Docker verification: Celery grading integration completed and emitted grading task metrics"
+      ],
+      "notes": "Prometheus multiprocess counters/histograms are shared between backend and Celery Worker. Real handwritten OCR validation remains deferred."
+    },
+    {
+      "id": "quality-002",
+      "priority": 22,
+      "area": "质量加固",
+      "title": "测试体系",
+      "description": "pytest 单元测试 + testcontainers 集成测试 + Playwright E2E 测试",
+      "user_visible_behavior": "运行 pytest 全部通过",
+      "status": "passing",
+      "verification": [
+        "pytest --cov=backend 覆盖率 ≥ 85%",
+        "Testcontainers Redis 冒烟测试和 Docker 业务集成测试全部通过",
+        "快速 E2E 覆盖登录→提交→查看批改",
+        "真实 Docker E2E 分别覆盖教师发布、学生上传/实时批改、教师复核/班级报告"
+      ],
+      "evidence": [
+        "pytest：131 passed, 1 skipped，backend/app 总覆盖率 85.38%；Ruff 检查通过",
+        "tests/test_testcontainers_smoke.py：Redis 7 容器读写冒烟测试通过",
+        "tests/run_docker_tests.ps1：MySQL 备份恢复、MinIO 上传、WebSocket 实时批改、评分版本、持久审计、Celery、知识画像、学习报告和缓存失效集成测试通过",
+        "frontend/e2e/student-flow.spec.ts：Chromium 学生登录→提交→查看批改结果通过",
+        "frontend/e2e-docker/course-workflows.spec.ts：3 条真实 Docker 浏览器工作流通过并自动清理",
+        "frontend npm run build：Vue TypeScript 检查和生产构建通过"
+      ],
+      "notes": "真实手写 OCR 图片人工验收属于 grading-001，未纳入本自动化质量门。"
+    },
+    {
+      "id": "quality-003",
+      "priority": 23,
+      "area": "质量加固",
+      "title": "CI/CD 流水线",
+      "description": "GitHub Actions：lint → test → build → deploy",
+      "user_visible_behavior": "每次 push 自动触发 CI",
+      "status": "blocked",
+      "verification": [
+        "Pull request 和 main push 触发 backend lint/test、frontend build/E2E 和 Docker 镜像构建",
+        "lint 检查无错误",
+        "v* 标签发布 backend/frontend 镜像到 GHCR"
+      ],
+      "evidence": [
+        ".github/workflows/ci.yml 定义 backend-quality、frontend-quality、docker-build 和 publish-images jobs",
+        "pyproject.toml + backend/requirements-dev.txt 固定 Ruff 0.9.10 lint 规则",
+        "本地等价验证：Ruff、pytest 覆盖率门、npm run build、Playwright E2E、backend/frontend Docker build 和 docker compose config 通过"
+      ],
+      "notes": "本地等价质量门已通过，但当前 origin 是 GitCode（gitcode.com），不会执行 GitHub Actions，因此标记 blocked。需迁移/镜像到 GitHub，或按 GitCode CI 规范改写后再做远端验收；远程主机部署仍未配置。"
+    },
+    {
+      "id": "quality-004",
+      "priority": 24,
+      "area": "质量加固",
+      "title": "安全加固 + 审计日志",
+      "description": "HTTPS/TLS 1.3、接口限流、文件上传校验、审计日志",
+      "user_visible_behavior": "系统符合企业安全规范",
+      "status": "passing",
+      "verification": [
+        "文件上传只接受 jpg/png（魔数校验）",
+        "限流配置生效（5r/m login，60r/m api）",
+        "TLS 1.3 Nginx 配置通过真实证书语法校验",
+        "认证、拒绝访问、限流和数据变更输出结构化审计日志并持久写入 MySQL",
+        "教师只能读取受管班级提交的审计记录，学生和非管理教师返回 403"
+      ],
+      "evidence": [
+        "backend/app/security.py：Redis 原子固定窗口限流、进程内故障降级、request ID 校验和客户端标识哈希",
+        "真实 Docker HTTP 验证：前 5 次错误登录返回 401，第 6 次返回 429 和 Retry-After，Prometheus 记录 429",
+        "ocr/ocr_server.py 和 backend/app/image_uploads.py：限制 PNG/JPEG 扩展名、大小、魔数并校验扩展名与内容一致",
+        "backend/app/observability.py 与 backend/app/audit_service.py：安全审计 JSON 及追加式 MySQL 写入，避免记录通用请求体、密码和图片",
+        "backend/app/models.py、backend/init.sql 和 schema_migrations.py：audit_logs 新库建表及现有数据卷幂等迁移",
+        "backend/app/routers/history.py：资源级权限审计查询，响应省略 IP 和 User-Agent",
+        "frontend/nginx.conf：CSP、nosniff、DENY、Referrer-Policy 和 Permissions-Policy 实际返回",
+        "docker-compose.tls.yml + deploy/nginx-tls.conf：只暴露 80/443，TLSv1.3 配置通过临时证书 nginx -t",
+        "全量 pytest：131 passed, 1 skipped，覆盖率 85.38%；Docker 集成和 3 条真实 Docker Playwright 流程通过"
+      ],
+      "notes": "TLS 覆盖需要部署方提供域名、fullchain.pem 和 privkey.pem；本地开发 Compose 继续使用 HTTP。审计记录采用外键和常规索引，当前规模下未按方案建议做 MySQL 月分区。"
+    },
+    {
+      "id": "quality-005",
+      "priority": 25,
+      "area": "质量加固",
+      "title": "MySQL 自动备份与恢复验证",
+      "description": "每日一致性逻辑备份、gzip/SHA-256 校验、30 天保留、MinIO 异地副本和隔离恢复验证",
+      "user_visible_behavior": "系统自动保留可校验的数据库备份，运维人员可以先恢复到隔离数据库确认完整性",
+      "status": "passing",
+      "verification": [
+        "mysql-backup 容器启动后生成压缩备份和同名 SHA-256 文件",
+        "备份同时保存在 mysql_backups 命名卷和 MinIO 独立 bucket",
+        "从 MinIO 下载后恢复到临时数据库，确认 14 张表及四张关键表存在并自动清理",
+        "默认恢复策略拒绝覆盖 ai_homework 主库",
+        "完整 Docker 回归与 3 条真实浏览器流程在新增备份服务后通过"
+      ],
+      "evidence": [
+        "deploy/mysql-backup/backup.sh：原子逻辑备份、压缩校验、本地/MinIO 保留策略和每日调度",
+        "deploy/mysql-backup/restore.sh：MinIO/本地取回、校验和、隔离恢复、结构检查及覆盖保护",
+        "docker-compose.yml：非 root mysql-backup 服务、健康检查和 mysql_backups 卷",
+        "tests/integration_mysql_backup.ps1：真实备份、MinIO 对象、隔离恢复、清理和拒绝路径验证",
+        "tests/run_docker_tests.ps1：备份恢复已纳入完整 Docker 集成门"
+      ],
+      "notes": "默认每天 03:00 执行、保留 30 天，并在容器启动时先备份一次；可通过 .env 调整。当前是单机 Compose 下的 MinIO 副本，真正跨主机/跨区域容灾仍需要部署侧配置独立对象存储或复制策略。"
+    }
+  ]
+}

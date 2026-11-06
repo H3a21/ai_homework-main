@@ -1,0 +1,105 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { assignmentsApi, type AssignmentInfo } from '../../api/assignments'
+import { submissionsApi, type SubmissionInfo } from '../../api/submissions'
+
+const router = useRouter()
+const assignments = ref<AssignmentInfo[]>([])
+const submissions = ref<SubmissionInfo[]>([])
+const loading = ref(false)
+
+async function fetchData() {
+  loading.value = true
+  try {
+    const [asgRes, subRes] = await Promise.all([
+      assignmentsApi.list(),
+      submissionsApi.list(),
+    ])
+    assignments.value = asgRes.data
+    submissions.value = subRes.data
+  } finally {
+    loading.value = false
+  }
+}
+
+function getSubmission(asgId: number) {
+  return submissions.value.find(s => s.assignment_id === asgId)
+}
+
+function viewSubmit(asgId: number) {
+  router.push(`/student/submit/${asgId}`)
+}
+
+function viewResult(subId: number) {
+  router.push(`/student/result/${subId}`)
+}
+
+onMounted(fetchData)
+</script>
+
+<template>
+  <div class="page">
+    <header class="page-header">
+      <h1>我的作业</h1>
+      <p class="subtitle">查看和提交作业</p>
+    </header>
+
+    <div v-if="loading" class="loading">加载中...</div>
+    <div v-else-if="assignments.length === 0" class="empty">
+      <p>暂无作业</p>
+    </div>
+    <div v-else class="asg-list">
+      <div v-for="a in assignments" :key="a.id" class="asg-card">
+        <div class="asg-header">
+          <h3>{{ a.title }}</h3>
+          <span class="tag">{{ a.subject_name }}</span>
+        </div>
+        <div class="asg-meta">
+          <span>{{ a.class_name }}</span>
+          <span>{{ a.question_count }} 题</span>
+          <span v-if="a.due_date">截止 {{ a.due_date }}</span>
+        </div>
+        <div class="asg-footer">
+          <template v-if="getSubmission(a.id)">
+            <span class="status" :class="getSubmission(a.id)!.status">
+              {{ getSubmission(a.id)!.status === 'completed'
+                ? '已批改 ' + getSubmission(a.id)!.total_score + ' 分'
+                : getSubmission(a.id)!.status === 'grading' ? '批改中' : '已提交' }}
+            </span>
+            <button class="btn btn-sm" @click="viewResult(getSubmission(a.id)!.id)">
+              {{ getSubmission(a.id)!.status === 'completed' ? '查看批改' : '查看状态' }}
+            </button>
+          </template>
+          <template v-else>
+            <span class="status pending">待提交</span>
+            <button :data-testid="`assignment-submit-${a.id}`" class="btn btn-primary btn-sm" @click="viewSubmit(a.id)">提交作业</button>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.page { padding: 32px; max-width: 1200px; margin: 0 auto; }
+.page-header { margin-bottom: 32px; }
+.page-header h1 { margin: 0; font-size: 24px; font-weight: 700; color: #1e293b; }
+.subtitle { margin: 4px 0 0; color: #64748b; font-size: 14px; }
+.loading, .empty { text-align: center; padding: 64px; color: #94a3b8; }
+.asg-list { display: flex; flex-direction: column; gap: 16px; }
+.asg-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.asg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.asg-header h3 { margin: 0; font-size: 18px; color: #1e293b; }
+.tag { padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; background: #eef2ff; color: #6366f1; }
+.asg-meta { display: flex; gap: 16px; font-size: 13px; color: #64748b; margin-bottom: 12px; }
+.asg-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid #f1f5f9; }
+.status { font-size: 13px; font-weight: 500; }
+.status.completed { color: #10b981; }
+.status.grading { color: #6366f1; }
+.status.pending { color: #f59e0b; }
+.btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-primary { background: #6366f1; color: #fff; }
+.btn-primary:hover { background: #4f46e5; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+</style>

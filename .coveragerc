@@ -1,0 +1,16 @@
+[run]
+source =
+    backend/app
+branch = true
+parallel = true
+omit =
+    backend/app/seed.py
+    backend/app/schema_migrations.py
+
+[report]
+show_missing = true
+skip_covered = true
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError

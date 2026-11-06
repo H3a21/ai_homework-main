@@ -1,0 +1,14 @@
+.coverage
+.coverage.*
+.pytest_cache/
+coverage.xml
+htmlcov/
+playwright-report/
+test-results/
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
